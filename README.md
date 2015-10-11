@@ -3,6 +3,8 @@ A Voice Synthesizer that uses, an Arduino, an amplifier and a SD Card
 
 Um sintetizador de voz que utiliza um Arduino, um amplificador, e um cartão SD. Esse projeto veio de uma atividade de Pesquisa e Extensão que tem como objetivo gerar tecnologias assistivas de baixo custo.
 
+Para explicações do código, existe outro readme na pasta Code
+
 -----------Pastas----------
   -> Code (Código)
   Essa pasta contém arquivos zip das bibliotecas usadas no projeto e a sketch arduino.
