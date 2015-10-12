@@ -1,26 +1,19 @@
 
-
-
 //Voice Synthetizer
-#include <MemoryFree.h> //Biblioteca verificação de memória RAM
-//#include <PS2Keyboard.h> //Biblioteca do teclado
-#include <SimpleSDAudio.h> //Biblioteca reprodução de audio atravez do cartão SD
-#include <LiquidCrystal.h> // Foi removida da bilbioteca toda a programação para LCD's I2C, por conta de compatibilidade do SimpleSDAudio.h com a Wire.h no arduino UNO
+#include <SimpleSDAudio.h> //Biblioteca reprodutora de Audio
+#include <LiquidCrystal.h> //Biblioteca para o display LCD
 #include <avr/pgmspace.h> // Gravação de constantes dentro da memória flash
-// pino saida de audio = 9
+#include <PS2Keyboard.h> //Biblioteca do teclado
+
+// pino saida de audio = 44 ARDUINO MEGA e 9 ARDUINO UNO (com o bridge temos um segundo pino que é o 10)
 // ou outros pinos ou são vcc ou são SPI (pesquisar no site do arduino)
 
-
-//Teclado
-//  PS2Keyboard keyboard;                                                           
-
-//LCD
-LiquidCrystal lcd(3, 4, 5, 6, 7, 8);  // Pinos do LCD (RS,Enable,D4,D5,D6,D7)
+PS2Keyboard keyboard; //Necessário para o funcionamento do teclado USB
 
 //Declaração das variáveis do replace dentro da flash, de forma a economizar cerca de 800 bytes. Indispensável para o funcionamento no UNO
 char buffer_um[11],buffer_dois[14];
 
-//LADO ESQUERDO
+//LADO ESQUERDO------------------------------------------
 prog_char rep_esq0[] PROGMEM = "QU-E"; 
 prog_char rep_esq1[] PROGMEM = "QU-I"; 
 prog_char rep_esq2[] PROGMEM = "QU-O"; 
@@ -74,7 +67,7 @@ prog_char rep_esq41[] PROGMEM = "-U\0";
 prog_char rep_esq42[] PROGMEM = "-ZP";
 
 
-//LADO DIREITO
+//LADO DIREITO-------------------------------------------
 prog_char rep_dir0[] PROGMEM = "KE"; 
 prog_char rep_dir1[] PROGMEM = "KI"; 
 prog_char rep_dir2[] PROGMEM = "KO"; 
@@ -127,155 +120,163 @@ prog_char rep_dir40[] PROGMEM = "M-";
 prog_char rep_dir41[] PROGMEM = "L\0";
 prog_char rep_dir42[] PROGMEM = "S-P";
 
-PROGMEM const char *rep_esq[43] =   
+PROGMEM const char *rep_esq[43] = 	
 {   
   rep_esq0, rep_esq1, rep_esq2, rep_esq3, rep_esq4, rep_esq5, rep_esq6, rep_esq7, rep_esq8, rep_esq9, rep_esq10, rep_esq11, rep_esq12, rep_esq13, rep_esq14, rep_esq15, rep_esq16,
   rep_esq17, rep_esq18, rep_esq19, rep_esq20, rep_esq21, rep_esq22, rep_esq23, rep_esq24, rep_esq25, rep_esq26, rep_esq27, rep_esq28, rep_esq29, rep_esq30, rep_esq31, rep_esq32,
   rep_esq33, rep_esq34, rep_esq35, rep_esq36, rep_esq37, rep_esq38, rep_esq39, rep_esq40, rep_esq41, rep_esq42
    };
 
-PROGMEM const char *rep_dir[43] =    
+PROGMEM const char *rep_dir[43] = 	 
 {   
   rep_dir0, rep_dir1, rep_dir2, rep_dir3, rep_dir4,rep_dir5, rep_dir6, rep_dir7, rep_dir8, rep_dir9, rep_dir10, rep_dir11, rep_dir12, rep_dir13, rep_dir14, rep_dir15, rep_dir16,
   rep_dir17, rep_dir18, rep_dir19, rep_dir20, rep_dir21, rep_dir22, rep_dir23, rep_dir24, rep_dir25, rep_dir26, rep_dir27, rep_dir28, rep_dir29, rep_dir30, rep_dir31, rep_dir32,
   rep_dir33, rep_dir34, rep_dir35, rep_dir36, rep_dir37, rep_dir38, rep_dir39, rep_dir40, rep_dir41, rep_dir42,
    };
 
+int i,p,L;
+char Sil[16], c;
+String frase, Ssil="";
+LiquidCrystal lcd(0 ,1, 3, 4, 5, 6);  // Pinos do LCD (RS,Enable,D4,D5,D6,D7)
+boolean flag;
 
-
-
-//Variáveis
-char Sil[6];
-String  frase,Ssil;  
-int i, s;
-char c;
-
-void setup(){
-  Serial.begin(115200);
-  SdPlay.setSDCSPin(10); // pino CS = 10
-  lcd.begin(16,2);   // initialize the lcd for 16 chars 2 lines
-  lcd.clear();
-//  keyboard.begin(A1,2); // Inicialização do teclado (DataPin, IRQpin)
-  if (!SdPlay.init(SSDA_MODE_FULLRATE | SSDA_MODE_MONO | SSDA_MODE_AUTOWORKER )){ //Configuração do SimpleSDAudio
-    {lcd.print(F("erro do SD!"));}
-    while(1);
-   }
-   
+void setup() {
+  SdPlay.setSDCSPin(7); // Define o pino CS = 7
+  lcd.begin(16,2);   // inicializando o lcd de 16 caracteres e 2 linhas 
+  lcd.setCursor(0,0); //Seta o cursor na posição 0 , 0
+  lcd.clear(); //Limpa a tela LCD
+  keyboard.begin(8,2); // Inicialização do teclado (DataPin, IRQpin)
+  if (!SdPlay.init(SSDA_MODE_FULLRATE | SSDA_MODE_MONO_BRIDGE | SSDA_MODE_AUTOWORKER)) //Configuração do SimpleSDAudio
+    {lcd.print("Erro no SD!"); //Mensagem de erro printada no LCD caso não consiga inicializar
+    while(1); //Loop infinito por conta do erro, obrigando a pessoa a resetar
+  } 
 }
-  
-
-
   
 void loop() { 
-  //Iniciando o LCD
-  lcd.setCursor(0,0); //Start at character 0 on line 0
-  lcd.noAutoscroll();
-  lcd.clear();
-  lcd.print(F("Digite uma frase"));
-
-/*
- //varredura do teclado até pressonar enter
- // 13 = enter ;  127 = backspace
-while(!keyboard.available());
-  lcd.clear();
-  lcd.setCursor(16,1);
-  lcd.autoscroll();
-  c=127;
-  while(c!=13){  
-    if (keyboard.available()) {
-    c = keyboard.read();
-    if(c==127){
-      lcd.noAutoscroll();
-      lcd.clear();
-      lcd.setCursor(16,1);
-      lcd.autoscroll();
-      frase="";
-    }
-    else if(c!=13){
-      lcd.write(c);
-      frase=frase+c;
-    }  
-  }
-  }
-  */
-  
-  
-  while(!Serial.available()) ;
-  String frase = Serial.readString();
-  
-  //Separando a frase
-  frase.toUpperCase();  //Deixar a frase toda em caixa alta
-  frase = separar(frase);
-Serial.println(frase);
-
-   //Reprodução dos fonemas a partir da frase separada
-   for(i=0; i<=frase.length(); i++){
-     if(frase.charAt(i)=='-' || i=='\0' || frase.charAt(i)==' '){
-       Ssil=Ssil+".AFM";  //Adiciona o formato do arquivo
-       for(s=0;s<=Ssil.length();s++){  //Transformação da string com o fonema para char
-         Sil[s]=Ssil.charAt(s); 
-       }       
-       SdPlay.setFile(Sil);  //Escolhe o arquivo a ser executado
-       Serial.println(Sil);
-      Serial.println(Ssil);  
-       SdPlay.play(); //Reproduz o arquivo escolhido
-       while(!SdPlay.isStopped()); //Para a execução do programa até o arquivo terminar de ser reproduzido
-       Ssil="";
-       strcpy_P(Sil, "");
-       delay(10); // Sem esse delay, ocorre bugs
-     }
-     else Ssil=Ssil+frase.charAt(i);  //Guardando parte da string (um fonema) em outra string
-   }   
-
+  lcd.begin(16,2);   // Inicializa o LCD, que possui 16 colunas e 2 linhas
+  lcd.setCursor(0,0); //Começa o cursor na posição 0 e 0
+  lcd.clear(); //Limpa a tela LCD
+  lcd.print("Escreva Frase:"); // Escreve na tela LCD, para indicar que o software já esta inicializado
     
-    frase="";
+   ReadKeyboard();  //Função de ler frase do teclado a ser reproduzida
+   frase.toUpperCase();  //Deixar a variável frase toda em caixa alta 
+   frase = separar(frase); //Roda a função para separar sílabas
+  
+   ReproduzirFrase(); //Função que reproduz a frase digitada
+   
+   frase=""; //Reinicia a variável para ser utilizada novamente
 }
 
 
+  //varredura do teclado até pressonar enter 
+ // Código ASCII => 13 = enter ;  127 = backspace
+void ReadKeyboard(){
+  while(!keyboard.available()); //Enquanto nenhuma tecla do teclado for pressionada não faça nada  
+  p=0; //As variáveis p e L indicam a posição atual do cursor (p = coluna e L = linha)
+  L=0;
+  lcd.clear();
+  lcd.setCursor(p,0); 
+  c=127;
+  while(c!=13){
+    flag=0;
+    //leitura do teclado
+    if (keyboard.available()) {
+    //Verificação de caso especial da posição do cursor
+    if (p==0 && L==1){ //Volta linha quando pressionado backspace e a segunda linha estiver vazia
+      p=16;
+      L=0;
+      flag=1;
+    }
+    if (p==16 && L==0 && flag==0) { //pula para segunda linha caso a primeira esteja toda preenchida
+      p=0;
+      L=1;
+    }  
+    if (p==17 && L==1){ //reproduzir caso ultrapasse o limite do display LCD
+      break;
+    }
+    if (p==-1 && L==0){ //Remoção de bug quando o usuário apertar backspace sem nada escrito
+      p=0;
+    }
+    c = keyboard.read(); //c é a variável que guarda o caracter digitado
+    lcd.setCursor(p,L);
+    if(c==127 && p!=0){ //para apagar um caractere
+      dobackspace();
+    }
+    else if(c!=13 && c!=127){ //para escrever um caractere na tela e guardar o caractere na string frase
+      lcd.write(c);
+      frase=frase+c;
+      p++;
+    }  
+    }
+  }
 
-  
+}
+
+
+   //Reprodução dos fonemas a partir da frase separada
+void ReproduzirFrase(){   
+   for(int n=0; n<=frase.length();n++){
+     if(frase.charAt(n)!='-' && frase.charAt(n)!=' ' && frase.charAt(n)!='\0'){
+            Ssil=Ssil+frase.charAt(n);  //Guardando parte da string (um fonema) em outra string
+     }
+     if(frase.charAt(n)=='-' || n==frase.length() || frase.charAt(n)==' '){
+              Ssil=Ssil+".AFM";
+              for(int s=0;s<=Ssil.length();s++){  //Transformação da string com o fonema para char
+               Sil[s]=Ssil.charAt(s); 
+              }
+              
+              SdPlay.setFile(Sil);  //Escolhe o arquivo a ser executado  
+              SdPlay.play(); //Reproduz o arquivo escolhido
+              while(!SdPlay.isStopped()); //Para a execução do programa até o arquivo terminar de ser reproduzido
+              Ssil="";
+              delay(10);
+   }
+
+   }
+}
+
 String separar(String input){     //Função: separa a frase em sílabas a serem pronunciadas pelo sintetizador
     String frase_separada = "";
-    for( i=0 ; i<input.length() ; i++){   //Loop: analisa todas as letras da frase digitada
+    for(i=0 ; i<input.length() ; i++){   //Loop: analisa todas as letras da frase digitada
           frase_separada += input.charAt(i);   //coloca a letra analisada na string da frase separada
-          char proxima = input.charAt(i + 1);
           if(input.length() <= i + 1 || input.charAt(i + 1) == ' ') continue;   //Se a letra analisada for a ultima da palavra, será incluida na string e não será analisada
-          else if(pertence(input.charAt(i), "RLMNSPCB") && input.length() > i && !IsVogal(proxima)) {  //Casos especiais de separação silábica
+          else if(pertence(input.charAt(i), "RLMNSPCB") && input.length() > i) {  //Casos especiais de separação silábica
                 char proxima = input.charAt(i + 1);
                 switch(input.charAt(i)){                
                   case 'R':
-                    if(proxima != 'R') frase_separada += '-';  // Inclui o segundo R na mesma sílaba. Ex: Barganhar = Bar-ga-nhar
+                    if(proxima != 'R' && !IsVogal(proxima)) frase_separada += '-';  // Inclui o segundo R na mesma sílaba. Ex: Carro = Ca-rro
                     break;
                   case 'L':
-                    if(proxima != 'H') frase_separada += '-'; //Une as letas L e H na mesma sílaba. Ex: Baralho = Ba-ra-lho
+                    if(proxima != 'H' && !IsVogal(proxima)) frase_separada += '-'; //Une as letas L e H na mesma sílaba. Ex: Baralho = Ba-ra-lho
                     break;
                   case'N':
-                    if(proxima != 'H') frase_separada += '-'; //Une as letras N e H na mesma sílaba. Ex: Engenharia = En-ge-nha-ri-a
+                    if(proxima != 'H' && !IsVogal(proxima)) frase_separada += '-'; //Une as letras N e H na mesma sílaba. Ex: Engenharia = En-ge-nha-ri-a
                     break;
                   case 'S':
-                    if(proxima != 'S') frase_separada += '-'; // Inclui o segundo S na mesma sílaba. Ex: Assassino = A-ssa-ssi-no
+                    if(proxima != 'S' && !IsVogal(proxima)) frase_separada += '-'; // Inclui o segundo S na mesma sílaba. Ex: Assassino = A-ssa-ssi-no
                     break;                    
                   case 'M':
-                    frase_separada += '-'; //Termina a vogal depois do M, se depois do M tiver consoante. Ex: 
+                    if(!IsVogal(proxima)) frase_separada += '-'; //Termina a vogal depois do M, se depois do M tiver consoante. Ex: 
                     break;
                   case 'P':
-                    if(!pertence(proxima, "LRS")) frase_separada += '-'; //Une o P com L, R ou S. Ex: Plagio = Pla-gi-o
+                    if(!pertence(proxima, "LRS") && !IsVogal(proxima)) frase_separada += '-'; //Une o P com L, R ou S. Ex: Plagio = Pla-gi-o
                     break;
                   case 'C':
-                    if(!pertence(proxima, "HLR")) frase_separada += '-'; //Une C com H, L, R ou S. Ex: Crase = Sacramento = Sa-cra-men-to
+                    if(!pertence(proxima, "HLR") && !IsVogal(proxima)) frase_separada += '-'; //Une C com H, L, R ou S. Ex: Crase = Sacramento = Sa-cra-men-to
                     break;  
                   case 'B':
-                    if(!pertence(proxima, "LRS")) frase_separada += '-'; //Ube B com L, R ou S. Ex: Problema = Pro-ble-ma
+                    if(!pertence(proxima, "LRS") && !IsVogal(proxima)) frase_separada += '-'; //Ube B com L, R ou S. Ex: Problema = Pro-ble-ma
                     break; //Porque o s pelo amor de deus
             }
           } else if(IsVogal(input.charAt(i))){
-            if(!pertence(proxima, "RLMNSZ")||IsVogal(proxima)){  //termina a sílaba se a letra analisada for vogal, mas a próxima letra não é R,L,M,N ou S
+            if(!pertence(input.charAt(i+1), "RLMNSZ")||IsVogal(input.charAt(i+1))){  //termina a sílaba se a letra analisada for vogal, mas a próxima letra não é R,L,M,N ou S
               frase_separada += '-';
             }
             else if(input.length()>i+2){
+              char letraC = input.charAt(i+1);
               if(IsVogal(input.charAt(i+2))) frase_separada += '-';
               else{
-                switch(proxima){
+                switch(letraC){
                   case 'R':
                     if(input.charAt(i+2)=='R') frase_separada += '-'; 
                     break;
@@ -293,22 +294,21 @@ String separar(String input){     //Função: separa a frase em sílabas a serem
               }
             }
           }
-
- frase_separada = " " + frase_separada;
- /* Using the string table in program memory requires the use of special functions to retrieve the data.
-     The strcpy_P function copies a string from program space to a string in RAM ("buffer"). 
-     Make sure your receiving string in RAM  is large enough to hold whatever
-     you are retrieving from program space. */
-  for (i=0 ; i<=42 ; i++)
+          
+    // ajudando a identificar inícios de palavra since agora
+    frase_separada = " " + frase_separada;
+    //Substituição das sílabas ou letras pela sua pronuncia
+     for (i=0 ; i<=42 ; i++)
   {
-    strcpy_P(buffer_um, (char*)pgm_read_word(&(rep_esq[i]))); // Necessary casts and dereferencing, just copy. 
-    strcpy_P(buffer_dois, (char*)pgm_read_word(&(rep_dir[i]))); // Guarda a string que está na memória flash no buffer 
+    strcpy_P(buffer_um, (char*)pgm_read_word(&(rep_esq[i]))); // Guarda a string que está na memória flash no buffer
+    strcpy_P(buffer_dois, (char*)pgm_read_word(&(rep_dir[i]))); //  Procedimento padrão para cópia de uma constante para o buffer
     frase_separada.replace(buffer_um,buffer_dois); // replace a partir de constantes da memoria flash
   } 
     
-   
-      return frase_separada;
-}
+    frase_separada.substring(2); //Não lembro porque isso está aqui, mas vai que da merda se tirar. Preferi deixar.
+    
+    return frase_separada;
+ }
  
  boolean IsVogal(char letra){                    //Função: Verifica se a letra é vogal
   String consoantes = "AEIOU";
@@ -322,4 +322,11 @@ String separar(String input){     //Função: separa a frase em sílabas a serem
  }
  
  
-
+ //Função para dar backspace
+ void dobackspace(){
+  p--;
+  lcd.setCursor(p,L);
+  lcd.write(' ');
+  lcd.setCursor(p,L);
+  frase=frase.substring(0,frase.length()-1);
+ }
