@@ -21,10 +21,3 @@ Líder: Tiago Lobão
 Contibuições no código: Victor Hugo Magalhães, Vitor Invenção, Ryan Teixeira, Péricles Oliveira.
 Contribuições do protótipo: Rafael Matos.
 
----------BUGS----------
-Essa versão ainda é beta e contém alguns bugs a serem corrigidos antes de ser construído.
-1 - Um cartão SD possui um limite de arquivos gravados no diretório root. Possivelmente necessita de uma modificação no código da biblioteca "SimpleSDAudio" para os audios serem guardados em uma pasta específica.
-2 - A amplificação não funciona muito bem. Ele foi pegado do site: "http://www.tecmundo.com.br/area-42/38717-area-42-como-fazer-um-amplificador-de-som-portatil-video-.htm"
-3 - A separação das sílabas não está perfeita. A ideia é ir incrementando a partir das necessidades.
-
-  
